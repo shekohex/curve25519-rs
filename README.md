@@ -11,6 +11,14 @@ This secret can then be used to authenticate and encrypt messages between the tw
 
 See [spec](https://cr.yp.to/ecdh.html)
 
+## Usage
+in your `Cargo.toml` file
+
+```toml
+[dependencies]
+curve25519 = { git = "https://github.com/shekohex/curve25519-rs" }
+```
+
 ### Some Notes
 This crate was extracted from [rust-crypto](https://github.com/DaGenix/rust-crypto) crate.
 
