@@ -1,0 +1,11 @@
+[package]
+name = "curve25519"
+version = "0.1.0"
+authors = ["Shady Khalifa <shekohex@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+rand = "0.6.1"
+
+[build-dependencies]
+cc = "1.0.26"
