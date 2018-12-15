@@ -16,7 +16,12 @@ use core::{
     cmp::{min, Eq, PartialEq},
     ops::{Add, Mul, Sub},
 };
-use rand::{rngs::OsRng, Error as RndError, Rng};
+
+#[allow(unused_imports)]
+use rand::{Error as RndError, Rng};
+
+#[cfg(feature = "std")]
+use rand::rngs::OsRng;
 
 /// Here the field is \Z/(2^255-19).
 ///
@@ -30,7 +35,7 @@ impl PartialEq for FieldElement {
     fn eq(&self, other: &FieldElement) -> bool {
         let &FieldElement(self_elems) = self;
         let &FieldElement(other_elems) = other;
-        self_elems.to_vec() == other_elems.to_vec()
+        self_elems == other_elems
     }
 }
 
@@ -2646,17 +2651,23 @@ pub fn curve25519(secret: [u8; 32], public: [u8; 32]) -> [u8; 32] {
 /// # }
 /// ```
 pub fn curve25519_sk(rand: Option<[u8; 32]>) -> Result<[u8; 32], RndError> {
-    let mut buf: [u8; 32] = [0; 32];
-
     // Fill a 32-byte buffer with random values if necessary.
     // Otherwise, use the given 32-byte value.
     let mut rand: [u8; 32] = match rand {
         Some(r) => r,
+
+        #[cfg(feature = "std")]
         None => {
             let mut rng = OsRng::new()?;
+            let mut buf: [u8; 32] = [0; 32];
             rng.fill(&mut buf);
             buf
         },
+
+        #[cfg(not(feature = "std"))]
+        None => {
+            unimplemented!()
+        }
     };
 
     // curve25519 secret key bit manip.
