@@ -8,6 +8,7 @@ addons:
   apt:
     packages:
       - gcc-arm-none-eabi
+      - libnewlib-arm-none-eabi
 script: |
   cargo build --verbose &&
   cargo test  --verbose &&
