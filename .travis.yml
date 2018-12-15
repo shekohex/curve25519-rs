@@ -1,0 +1,24 @@
+language: rust
+sudo: false
+rust:
+  - stable
+  - beta
+  - nightly
+script: |
+  cargo build --verbose &&
+  cargo test  --verbose &&
+  cargo doc   --verbose
+
+matrix:
+  include:
+    - rust: nightly-2018-12-06
+      before_script:
+        - rustup component add rustfmt-preview
+        - rustup component add clippy-preview
+      script:
+        - cargo fmt --all -- --check
+        - cargo clippy -- -D clippy::all
+cache: cargo
+notifications:
+  email:
+    on_success: never
