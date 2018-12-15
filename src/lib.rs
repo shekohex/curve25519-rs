@@ -18,7 +18,7 @@ use core::{
 };
 
 #[allow(unused_imports)]
-use rand::{Error as RndError, Rng};
+use rand::{Error as RndError, ErrorKind::Unavailable, Rng};
 
 #[cfg(feature = "std")]
 use rand::rngs::OsRng;
@@ -2669,8 +2669,11 @@ pub fn curve25519_sk(rand: Option<[u8; 32]>) -> Result<[u8; 32], RndError> {
 
         #[cfg(not(feature = "std"))]
         None => {
-            unimplemented!()
-        }
+            return Err(RndError::new(
+                Unavailable,
+                "Cannot generate random without Standard Library",
+            ));
+        },
     };
 
     // curve25519 secret key bit manip.
