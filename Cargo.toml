@@ -3,9 +3,25 @@ name = "curve25519"
 version = "0.1.0"
 authors = ["Shady Khalifa <shekohex@gmail.com>"]
 edition = "2018"
+license = "MIT/Apache-2.0"
+description = """
+Curve25519 is a state-of-the-art Diffie-Hellman function suitable for a wide variety of applications.
+ported from rust-crypto crate
+"""
+readme = "README.md"
+keywords = ["crypto", "curve25519", "rust-crypto"]
+categories = ["no-std", "algorithms"]
+repository = "https://github.com/shekohex/curve25519-rs"
 
 [dependencies]
 rand = "0.6.1"
 
 [build-dependencies]
 cc = "1.0.26"
+
+[dev-dependencies]
+criterion = "0.2"
+
+[[bench]]
+name = "curve25519"
+harness = false
