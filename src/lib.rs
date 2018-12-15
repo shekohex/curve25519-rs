@@ -1,25 +1,28 @@
-#![allow(clippy::suspicious_arithmetic_impl)]
-#![allow(non_camel_case_types)]
 #![warn(clippy::all)]
-#![allow(clippy::suspicious_arithmetic_impl)]
+#![allow(
+    clippy::suspicious_arithmetic_impl,
+    clippy::many_single_char_names,
+    clippy::unknown_clippy_lints
+)]
 #![no_std]
 
 mod statics;
-mod step_up;
 mod util;
-use crate::statics::{BI, GE_PRECOMP_BASE};
-use crate::step_up::RangeExt;
-use crate::util::fixed_time_eq;
-use rand::rngs::OsRng;
-use rand::Rng;
-use core::cmp::{min, Eq, PartialEq};
-use core::ops::{Add, Mul, Sub};
+use crate::{
+    statics::{BI, FE_D, FE_D2, FE_ONE, FE_SQRTM1, FE_ZERO, GE_PRECOMP_BASE},
+    util::fixed_time_eq,
+};
+use core::{
+    cmp::{min, Eq, PartialEq},
+    ops::{Add, Mul, Sub},
+};
+use rand::{rngs::OsRng, Error as RndError, Rng};
 
 /// Here the field is \Z/(2^255-19).
 ///
-/// An element t, entries t[0]...t[9], represents the integer
+/// An element t, entries t\[0\]...t\[9\], represents the integer
 /// `t[0]+2^26 t[1]+2^51 t[2]+2^77 t[3]+2^102 t[4]+...+2^230 t[9]`.
-/// Bounds on each t[i] vary depending on context.
+/// Bounds on each t\[i\] vary depending on context.
 #[derive(Clone, Copy)]
 pub struct FieldElement(pub [i32; 10]);
 
@@ -33,54 +36,16 @@ impl PartialEq for FieldElement {
 
 impl Eq for FieldElement {}
 
-static FE_ZERO: FieldElement = FieldElement([0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
-static FE_ONE: FieldElement = FieldElement([1, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
-static FE_SQRTM1: FieldElement = FieldElement([
-    -32_595_792,
-    -7_943_725,
-    9_377_950,
-    3_500_415,
-    12_389_472,
-    -272_473,
-    -25_146_209,
-    -2_005_654,
-    326_686,
-    11_406_482,
-]);
-static FE_D: FieldElement = FieldElement([
-    -10_913_610,
-    13_857_413,
-    -15_372_611,
-    6_949_391,
-    114_729,
-    -8_787_816,
-    -6_275_908,
-    -3_247_719,
-    -18_696_448,
-    -12_055_116,
-]);
-static FE_D2: FieldElement = FieldElement([
-    -21_827_239,
-    -5_839_606,
-    -30_745_221,
-    13_898_782,
-    229_458,
-    15_978_800,
-    -12_551_817,
-    -6_495_438,
-    29_715_968,
-    9_444_199,
-]);
-
 #[inline]
 fn load_4u(s: &[u8]) -> u64 {
-    u64::from(s[0]) | (u64::from(s[1]) << 8) | (u64::from(s[2]) << 16) | (u64::from(s[3]) << 24)
+    u64::from(s[0])
+        | (u64::from(s[1]) << 8)
+        | (u64::from(s[2]) << 16)
+        | (u64::from(s[3]) << 24)
 }
 
 #[inline]
-fn load_4i(s: &[u8]) -> i64 {
-    load_4u(s) as i64
-}
+fn load_4i(s: &[u8]) -> i64 { load_4u(s) as i64 }
 
 #[inline]
 fn load_3u(s: &[u8]) -> u64 {
@@ -88,9 +53,7 @@ fn load_3u(s: &[u8]) -> u64 {
 }
 
 #[inline]
-fn load_3i(s: &[u8]) -> i64 {
-    load_3u(s) as i64
-}
+fn load_3i(s: &[u8]) -> i64 { load_3u(s) as i64 }
 
 impl Add for FieldElement {
     type Output = FieldElement;
@@ -191,8 +154,8 @@ impl Mul for FieldElement {
         let [f0, f1, f2, f3, f4, f5, f6, f7, f8, f9] = f;
         let [g0, g1, g2, g3, g4, g5, g6, g7, g8, g9] = g;
 
-        let g1_19 = 19 * g1; /* 1.4*2^29 */
-        let g2_19 = 19 * g2; /* 1.4*2^30; still ok */
+        let g1_19 = 19 * g1; // 1.4*2^29
+        let g2_19 = 19 * g2; // 1.4*2^30; still ok
         let g3_19 = 19 * g3;
         let g4_19 = 19 * g4;
         let g5_19 = 19 * g5;
@@ -335,17 +298,68 @@ impl Mul for FieldElement {
             + f7g5_38
             + f8g4_19
             + f9g3_38;
-        let mut h3 =
-            f0g3 + f1g2 + f2g1 + f3g0 + f4g9_19 + f5g8_19 + f6g7_19 + f7g6_19 + f8g5_19 + f9g4_19;
-        let mut h4 =
-            f0g4 + f1g3_2 + f2g2 + f3g1_2 + f4g0 + f5g9_38 + f6g8_19 + f7g7_38 + f8g6_19 + f9g5_38;
-        let mut h5 =
-            f0g5 + f1g4 + f2g3 + f3g2 + f4g1 + f5g0 + f6g9_19 + f7g8_19 + f8g7_19 + f9g6_19;
-        let mut h6 =
-            f0g6 + f1g5_2 + f2g4 + f3g3_2 + f4g2 + f5g1_2 + f6g0 + f7g9_38 + f8g8_19 + f9g7_38;
-        let mut h7 = f0g7 + f1g6 + f2g5 + f3g4 + f4g3 + f5g2 + f6g1 + f7g0 + f8g9_19 + f9g8_19;
-        let mut h8 = f0g8 + f1g7_2 + f2g6 + f3g5_2 + f4g4 + f5g3_2 + f6g2 + f7g1_2 + f8g0 + f9g9_38;
-        let mut h9 = f0g9 + f1g8 + f2g7 + f3g6 + f4g5 + f5g4 + f6g3 + f7g2 + f8g1 + f9g0;
+        let mut h3 = f0g3
+            + f1g2
+            + f2g1
+            + f3g0
+            + f4g9_19
+            + f5g8_19
+            + f6g7_19
+            + f7g6_19
+            + f8g5_19
+            + f9g4_19;
+        let mut h4 = f0g4
+            + f1g3_2
+            + f2g2
+            + f3g1_2
+            + f4g0
+            + f5g9_38
+            + f6g8_19
+            + f7g7_38
+            + f8g6_19
+            + f9g5_38;
+        let mut h5 = f0g5
+            + f1g4
+            + f2g3
+            + f3g2
+            + f4g1
+            + f5g0
+            + f6g9_19
+            + f7g8_19
+            + f8g7_19
+            + f9g6_19;
+        let mut h6 = f0g6
+            + f1g5_2
+            + f2g4
+            + f3g3_2
+            + f4g2
+            + f5g1_2
+            + f6g0
+            + f7g9_38
+            + f8g8_19
+            + f9g7_38;
+        let mut h7 = f0g7
+            + f1g6
+            + f2g5
+            + f3g4
+            + f4g3
+            + f5g2
+            + f6g1
+            + f7g0
+            + f8g9_19
+            + f9g8_19;
+        let mut h8 = f0g8
+            + f1g7_2
+            + f2g6
+            + f3g5_2
+            + f4g4
+            + f5g3_2
+            + f6g2
+            + f7g1_2
+            + f8g0
+            + f9g9_38;
+        let mut h9 =
+            f0g9 + f1g8 + f2g7 + f3g6 + f4g5 + f5g4 + f6g3 + f7g2 + f8g1 + f9g0;
         let mut carry0;
         let carry1;
         let carry2;
@@ -430,8 +444,8 @@ impl Mul for FieldElement {
         // |h1| <= 1.01*2^24
 
         FieldElement([
-            h0 as i32, h1 as i32, h2 as i32, h3 as i32, h4 as i32, h5 as i32, h6 as i32, h7 as i32,
-            h8 as i32, h9 as i32,
+            h0 as i32, h1 as i32, h2 as i32, h3 as i32, h4 as i32, h5 as i32,
+            h6 as i32, h7 as i32, h8 as i32, h9 as i32,
         ])
     }
 }
@@ -482,8 +496,8 @@ impl FieldElement {
         h8 -= carry8 << 26;
 
         FieldElement([
-            h0 as i32, h1 as i32, h2 as i32, h3 as i32, h4 as i32, h5 as i32, h6 as i32, h7 as i32,
-            h8 as i32, h9 as i32,
+            h0 as i32, h1 as i32, h2 as i32, h3 as i32, h4 as i32, h5 as i32,
+            h6 as i32, h7 as i32, h8 as i32, h9 as i32,
         ])
     }
 
@@ -570,8 +584,8 @@ impl FieldElement {
         h9 -= carry9 << 25;
         // h10 = carry9
 
-        // Goal: Output h0+...+2^255 h10-2^255 q, which is between 0 and 2^255-20.
-        // Have h0+...+2^230 h9 between 0 and 2^255-1;
+        // Goal: Output h0+...+2^255 h10-2^255 q, which is between 0 and
+        // 2^255-20. Have h0+...+2^230 h9 between 0 and 2^255-1;
         // evidently 2^255 h10-2^255 q = 0.
         // Goal: Output h0+...+2^230 h9.
         [
@@ -757,8 +771,8 @@ impl FieldElement {
         h8 -= carry8 << 26;
 
         FieldElement([
-            h0 as i32, h1 as i32, h2 as i32, h3 as i32, h4 as i32, h5 as i32, h6 as i32, h7 as i32,
-            h8 as i32, h9 as i32,
+            h0 as i32, h1 as i32, h2 as i32, h3 as i32, h4 as i32, h5 as i32,
+            h6 as i32, h7 as i32, h8 as i32, h9 as i32,
         ])
     }
 
@@ -784,11 +798,11 @@ impl FieldElement {
         let f5_2 = 2 * f5;
         let f6_2 = 2 * f6;
         let f7_2 = 2 * f7;
-        let f5_38 = 38 * f5; /* 1.31*2^30 */
-        let f6_19 = 19 * f6; /* 1.31*2^30 */
-        let f7_38 = 38 * f7; /* 1.31*2^30 */
-        let f8_19 = 19 * f8; /* 1.31*2^30 */
-        let f9_38 = 38 * f9; /* 1.31*2^30 */
+        let f5_38 = 38 * f5; // 1.31*2^30
+        let f6_19 = 19 * f6; // 1.31*2^30
+        let f7_38 = 38 * f7; // 1.31*2^30
+        let f8_19 = 19 * f8; // 1.31*2^30
+        let f9_38 = 38 * f9; // 1.31*2^30
         let f0f0 = i64::from(f0) * i64::from(f0);
         let f0f1_2 = i64::from(f0_2) * i64::from(f1);
         let f0f2_2 = i64::from(f0_2) * i64::from(f2);
@@ -899,8 +913,8 @@ impl FieldElement {
         h0 -= carrya << 26;
 
         FieldElement([
-            h0 as i32, h1 as i32, h2 as i32, h3 as i32, h4 as i32, h5 as i32, h6 as i32, h7 as i32,
-            h8 as i32, h9 as i32,
+            h0 as i32, h1 as i32, h2 as i32, h3 as i32, h4 as i32, h5 as i32,
+            h6 as i32, h7 as i32, h8 as i32, h9 as i32,
         ])
     }
 
@@ -917,11 +931,11 @@ impl FieldElement {
         let f5_2 = 2 * f5;
         let f6_2 = 2 * f6;
         let f7_2 = 2 * f7;
-        let f5_38 = 38 * f5; /* 1.959375*2^30 */
-        let f6_19 = 19 * f6; /* 1.959375*2^30 */
-        let f7_38 = 38 * f7; /* 1.959375*2^30 */
-        let f8_19 = 19 * f8; /* 1.959375*2^30 */
-        let f9_38 = 38 * f9; /* 1.959375*2^30 */
+        let f5_38 = 38 * f5; // 1.959375*2^30
+        let f6_19 = 19 * f6; // 1.959375*2^30
+        let f7_38 = 38 * f7; // 1.959375*2^30
+        let f8_19 = 19 * f8; // 1.959375*2^30
+        let f9_38 = 38 * f9; // 1.959375*2^30
         let f0f0 = i64::from(f0) * i64::from(f0);
         let f0f1_2 = i64::from(f0_2) * i64::from(f1);
         let f0f2_2 = i64::from(f0_2) * i64::from(f2);
@@ -1053,80 +1067,80 @@ impl FieldElement {
         h0 -= carry0 << 26;
 
         FieldElement([
-            h0 as i32, h1 as i32, h2 as i32, h3 as i32, h4 as i32, h5 as i32, h6 as i32, h7 as i32,
-            h8 as i32, h9 as i32,
+            h0 as i32, h1 as i32, h2 as i32, h3 as i32, h4 as i32, h5 as i32,
+            h6 as i32, h7 as i32, h8 as i32, h9 as i32,
         ])
     }
 
     pub fn invert(&self) -> FieldElement {
         let z1 = *self;
 
-        /* qhasm: z2 = z1^2^1 */
+        // qhasm: z2 = z1^2^1
         let z2 = z1.square();
-        /* qhasm: z8 = z2^2^2 */
+        // qhasm: z8 = z2^2^2
         let z8 = z2.square().square();
-        /* qhasm: z9 = z1*z8 */
+        // qhasm: z9 = z1*z8
         let z9 = z1 * z8;
 
-        /* qhasm: z11 = z2*z9 */
+        // qhasm: z11 = z2*z9
         let z11 = z2 * z9;
 
-        /* qhasm: z22 = z11^2^1 */
+        // qhasm: z22 = z11^2^1
         let z22 = z11.square();
 
-        /* qhasm: z_5_0 = z9*z22 */
+        // qhasm: z_5_0 = z9*z22
         let z_5_0 = z9 * z22;
 
-        /* qhasm: z_10_5 = z_5_0^2^5 */
+        // qhasm: z_10_5 = z_5_0^2^5
         let z_10_5 = (0..5).fold(z_5_0, |z_5_n, _| z_5_n.square());
 
-        /* qhasm: z_10_0 = z_10_5*z_5_0 */
+        // qhasm: z_10_0 = z_10_5*z_5_0
         let z_10_0 = z_10_5 * z_5_0;
 
-        /* qhasm: z_20_10 = z_10_0^2^10 */
+        // qhasm: z_20_10 = z_10_0^2^10
         let z_20_10 = (0..10).fold(z_10_0, |x, _| x.square());
 
-        /* qhasm: z_20_0 = z_20_10*z_10_0 */
+        // qhasm: z_20_0 = z_20_10*z_10_0
         let z_20_0 = z_20_10 * z_10_0;
 
-        /* qhasm: z_40_20 = z_20_0^2^20 */
+        // qhasm: z_40_20 = z_20_0^2^20
         let z_40_20 = (0..20).fold(z_20_0, |x, _| x.square());
 
-        /* qhasm: z_40_0 = z_40_20*z_20_0 */
+        // qhasm: z_40_0 = z_40_20*z_20_0
         let z_40_0 = z_40_20 * z_20_0;
 
-        /* qhasm: z_50_10 = z_40_0^2^10 */
+        // qhasm: z_50_10 = z_40_0^2^10
         let z_50_10 = (0..10).fold(z_40_0, |x, _| x.square());
 
-        /* qhasm: z_50_0 = z_50_10*z_10_0 */
+        // qhasm: z_50_0 = z_50_10*z_10_0
         let z_50_0 = z_50_10 * z_10_0;
 
-        /* qhasm: z_100_50 = z_50_0^2^50 */
+        // qhasm: z_100_50 = z_50_0^2^50
         let z_100_50 = (0..50).fold(z_50_0, |x, _| x.square());
 
-        /* qhasm: z_100_0 = z_100_50*z_50_0 */
+        // qhasm: z_100_0 = z_100_50*z_50_0
         let z_100_0 = z_100_50 * z_50_0;
 
-        /* qhasm: z_200_100 = z_100_0^2^100 */
+        // qhasm: z_200_100 = z_100_0^2^100
         let z_200_100 = (0..100).fold(z_100_0, |x, _| x.square());
 
-        /* qhasm: z_200_0 = z_200_100*z_100_0 */
-        /* asm 1: fe_mul(>z_200_0=fe#3,<z_200_100=fe#4,<z_100_0=fe#3); */
-        /* asm 2: fe_mul(>z_200_0=t2,<z_200_100=t3,<z_100_0=t2); */
+        // qhasm: z_200_0 = z_200_100*z_100_0
+        // asm 1: fe_mul(>z_200_0=fe#3,<z_200_100=fe#4,<z_100_0=fe#3);
+        // asm 2: fe_mul(>z_200_0=t2,<z_200_100=t3,<z_100_0=t2);
         let z_200_0 = z_200_100 * z_100_0;
 
-        /* qhasm: z_250_50 = z_200_0^2^50 */
+        // qhasm: z_250_50 = z_200_0^2^50
         let z_250_50 = (0..50).fold(z_200_0, |x, _| x.square());
 
-        /* qhasm: z_250_0 = z_250_50*z_50_0 */
+        // qhasm: z_250_0 = z_250_50*z_50_0
         let z_250_0 = z_250_50 * z_50_0;
 
-        /* qhasm: z_255_5 = z_250_0^2^5 */
+        // qhasm: z_255_5 = z_250_0^2^5
         let z_255_5 = (0..5).fold(z_250_0, |x, _| x.square());
 
-        /* qhasm: z_255_21 = z_255_5*z11 */
-        /* asm 1: fe_mul(>z_255_21=fe#12,<z_255_5=fe#2,<z11=fe#1); */
-        /* asm 2: fe_mul(>z_255_21=out,<z_255_5=t1,<z11=t0); */
+        // qhasm: z_255_21 = z_255_5*z11
+        // asm 1: fe_mul(>z_255_21=fe#12,<z_255_5=fe#2,<z11=fe#1);
+        // asm 2: fe_mul(>z_255_21=out,<z_255_5=t1,<z11=t0);
         z_255_5 * z11
     }
 
@@ -1136,14 +1150,13 @@ impl FieldElement {
         !fixed_time_eq(bs.as_ref(), zero.as_ref())
     }
 
-    fn is_negative(&self) -> bool {
-        (self.to_bytes()[0] & 1) != 0
-    }
+    fn is_negative(&self) -> bool { (self.to_bytes()[0] & 1) != 0 }
 
     fn neg(&self) -> FieldElement {
         let &FieldElement(f) = self;
         FieldElement([
-            -f[0], -f[1], -f[2], -f[3], -f[4], -f[5], -f[6], -f[7], -f[8], -f[9],
+            -f[0], -f[1], -f[2], -f[3], -f[4], -f[5], -f[6], -f[7], -f[8],
+            -f[9],
         ])
     }
 
@@ -1173,6 +1186,7 @@ impl FieldElement {
     }
 }
 
+#[doc(hidden)]
 #[derive(Clone, Copy)]
 pub struct GeP2 {
     x: FieldElement,
@@ -1180,6 +1194,7 @@ pub struct GeP2 {
     z: FieldElement,
 }
 
+#[doc(hidden)]
 #[derive(Clone, Copy)]
 pub struct GeP3 {
     x: FieldElement,
@@ -1188,6 +1203,7 @@ pub struct GeP3 {
     t: FieldElement,
 }
 
+#[doc(hidden)]
 #[derive(Clone, Copy)]
 pub struct GeP1P1 {
     x: FieldElement,
@@ -1196,6 +1212,7 @@ pub struct GeP1P1 {
     t: FieldElement,
 }
 
+#[doc(hidden)]
 #[derive(Clone, Copy)]
 pub struct GePrecomp {
     y_plus_x: FieldElement,
@@ -1203,6 +1220,7 @@ pub struct GePrecomp {
     xy2d: FieldElement,
 }
 
+#[doc(hidden)]
 #[derive(Clone, Copy)]
 pub struct GeCached {
     y_plus_x: FieldElement,
@@ -1303,7 +1321,11 @@ impl GeP2 {
     // where a = a[0]+256*a[1]+...+256^31 a[31].
     // and b = b[0]+256*b[1]+...+256^31 b[31].
     // B is the Ed25519 base point (x,4/5) with x positive.
-    pub fn double_scalarmult_vartime(a_scalar: &[u8], a_point: GeP3, b_scalar: &[u8]) -> GeP2 {
+    pub fn double_scalarmult_vartime(
+        a_scalar: &[u8],
+        a_point: GeP3,
+        b_scalar: &[u8],
+    ) -> GeP2 {
         let aslide = GeP2::slide(a_scalar);
         let bslide = GeP2::slide(b_scalar);
 
@@ -1312,7 +1334,7 @@ impl GeP2 {
             y_minus_x: FE_ZERO,
             z: FE_ZERO,
             t2d: FE_ZERO,
-        }; 8]; /* A,3A,5A,7A,9A,11A,13A,15A */
+        }; 8]; // A,3A,5A,7A,9A,11A,13A,15A
         ai[0] = a_point.to_cached();
         let a2 = a_point.dbl().to_p3();
         ai[1] = (a2 + ai[0]).to_p3().to_cached();
@@ -1369,7 +1391,8 @@ impl GeP3 {
         let v = (y_squared * FE_D) + FE_ONE;
         let v_raise_3 = v.square() * v;
         let v_raise_7 = v_raise_3.square() * v;
-        let uv7 = v_raise_7 * u; // Is this commutative? u comes second in the code, but not in the notation...
+        let uv7 = v_raise_7 * u; // Is this commutative? u comes second in the code, but not in the
+                                 // notation...
 
         let mut x = uv7.pow25523() * v_raise_3 * u;
 
@@ -1389,12 +1412,7 @@ impl GeP3 {
 
         let t = x * y;
 
-        Some(GeP3 {
-            x: x,
-            y: y,
-            z: z,
-            t: t,
-        })
+        Some(GeP3 { x, y, z, t })
     }
 
     fn to_p2(&self) -> GeP2 {
@@ -1423,9 +1441,7 @@ impl GeP3 {
         }
     }
 
-    fn dbl(&self) -> GeP1P1 {
-        self.to_p2().dbl()
-    }
+    fn dbl(&self) -> GeP1P1 { self.to_p2().dbl() }
 
     pub fn to_bytes(&self) -> [u8; 32] {
         let recip = self.z.invert();
@@ -1535,17 +1551,19 @@ impl Sub<GePrecomp> for GeP3 {
     }
 }
 
+#[inline]
 fn equal(b: u8, c: u8) -> i32 {
-    let x = b ^ c; /* 0: yes; 1..255: no */
-    let mut y = u32::from(x); /* 0: yes; 1..255: no */
-    y = y.wrapping_sub(1); /* 4294967295: yes; 0..254: no */
-    y >>= 31; /* 1: yes; 0: no */
+    let x = b ^ c; // 0: yes; 1..255: no
+    let mut y = u32::from(x); // 0: yes; 1..255: no
+    y = y.wrapping_sub(1); // 4294967295: yes; 0..254: no
+    y >>= 31; // 1: yes; 0: no
     y as i32
 }
 
+#[inline]
 fn negative(b: i8) -> u8 {
     let mut x = i64::from(b) as u64;
-    x >>= 63; /* 1: yes; 0: no */
+    x >>= 63; // 1: yes; 0: no
     x as u8
 }
 
@@ -1592,6 +1610,7 @@ impl GePrecomp {
 //
 // Preconditions:
 //   a[31] <= 127
+#[doc(hidden)]
 pub fn ge_scalarmult_base(a: &[u8]) -> GeP3 {
     let mut es: [i8; 64] = [0; 64];
     let mut r: GeP1P1;
@@ -1616,7 +1635,7 @@ pub fn ge_scalarmult_base(a: &[u8]) -> GeP3 {
     // each es[i] is between -8 and 8
 
     let mut h = GeP3::zero();
-    for i in (1..64).step_up(2) {
+    for i in (1..64).step_by(2) {
         t = GePrecomp::select(i / 2, es[i]);
         r = h + t;
         h = r.to_p3();
@@ -1631,7 +1650,7 @@ pub fn ge_scalarmult_base(a: &[u8]) -> GeP3 {
     r = s.dbl();
     h = r.to_p3();
 
-    for i in (0..64).step_up(2) {
+    for i in (0..64).step_by(2) {
         t = GePrecomp::select(i / 2, es[i]);
         r = h + t;
         h = r.to_p3();
@@ -1646,6 +1665,7 @@ pub fn ge_scalarmult_base(a: &[u8]) -> GeP3 {
 //     s[0]+256*s[1]+...+256^31*s[31] = s mod l
 //     where l = 2^252 + `27742317777372353535851937790883648493`.
 //     Overwrites s in place.
+#[doc(hidden)]
 pub fn sc_reduce(s: &mut [u8]) {
     let mut s0: i64 = 2_097_151 & load_3i(s);
     let mut s1: i64 = 2_097_151 & (load_4i(&s[2..6]) >> 5);
@@ -1975,6 +1995,7 @@ pub fn sc_reduce(s: &mut [u8]) {
 // Output:
 //     s[0]+256*s[1]+...+256^31*s[31] = (ab+c) mod l
 //     where l = 2^252 + 27742317777372353535851937790883648493.
+#[doc(hidden)]
 pub fn sc_muladd(s: &mut [u8], a: &[u8], b: &[u8], c: &[u8]) {
     let a0 = 2_097_151 & load_3i(&a[0..3]);
     let a1 = 2_097_151 & (load_4i(&a[2..6]) >> 5);
@@ -2066,8 +2087,23 @@ pub fn sc_muladd(s: &mut [u8], a: &[u8], b: &[u8], c: &[u8]) {
     s3 = c3 + a0 * b3 + a1 * b2 + a2 * b1 + a3 * b0;
     s4 = c4 + a0 * b4 + a1 * b3 + a2 * b2 + a3 * b1 + a4 * b0;
     s5 = c5 + a0 * b5 + a1 * b4 + a2 * b3 + a3 * b2 + a4 * b1 + a5 * b0;
-    s6 = c6 + a0 * b6 + a1 * b5 + a2 * b4 + a3 * b3 + a4 * b2 + a5 * b1 + a6 * b0;
-    s7 = c7 + a0 * b7 + a1 * b6 + a2 * b5 + a3 * b4 + a4 * b3 + a5 * b2 + a6 * b1 + a7 * b0;
+    s6 = c6
+        + a0 * b6
+        + a1 * b5
+        + a2 * b4
+        + a3 * b3
+        + a4 * b2
+        + a5 * b1
+        + a6 * b0;
+    s7 = c7
+        + a0 * b7
+        + a1 * b6
+        + a2 * b5
+        + a3 * b4
+        + a4 * b3
+        + a5 * b2
+        + a6 * b1
+        + a7 * b0;
     s8 = c8
         + a0 * b8
         + a1 * b7
@@ -2135,10 +2171,25 @@ pub fn sc_muladd(s: &mut [u8], a: &[u8], b: &[u8], c: &[u8]) {
         + a9 * b4
         + a10 * b3
         + a11 * b2;
-    s14 =
-        a3 * b11 + a4 * b10 + a5 * b9 + a6 * b8 + a7 * b7 + a8 * b6 + a9 * b5 + a10 * b4 + a11 * b3;
-    s15 = a4 * b11 + a5 * b10 + a6 * b9 + a7 * b8 + a8 * b7 + a9 * b6 + a10 * b5 + a11 * b4;
-    s16 = a5 * b11 + a6 * b10 + a7 * b9 + a8 * b8 + a9 * b7 + a10 * b6 + a11 * b5;
+    s14 = a3 * b11
+        + a4 * b10
+        + a5 * b9
+        + a6 * b8
+        + a7 * b7
+        + a8 * b6
+        + a9 * b5
+        + a10 * b4
+        + a11 * b3;
+    s15 = a4 * b11
+        + a5 * b10
+        + a6 * b9
+        + a7 * b8
+        + a8 * b7
+        + a9 * b6
+        + a10 * b5
+        + a11 * b4;
+    s16 =
+        a5 * b11 + a6 * b10 + a7 * b9 + a8 * b8 + a9 * b7 + a10 * b6 + a11 * b5;
     s17 = a6 * b11 + a7 * b10 + a8 * b9 + a9 * b8 + a10 * b7 + a11 * b6;
     s18 = a7 * b11 + a8 * b10 + a9 * b9 + a10 * b8 + a11 * b7;
     s19 = a8 * b11 + a9 * b10 + a10 * b9 + a11 * b8;
@@ -2497,16 +2548,19 @@ pub fn sc_muladd(s: &mut [u8], a: &[u8], b: &[u8], c: &[u8]) {
 }
 
 /// Generate a 32-byte curve25519 key, given a 32-byte curve25519 secret key
-/// and a 32-byte curve22519 public key.  If the public argument is the
-/// predefined basepoint value (9 followed by all zeros), then this function
-/// will calculate a curve25519 public key.
+/// and a 32-byte curve22519 public key.
+///
+/// If the public argument is the predefined basepoint value (9 followed by all
+/// zeros), then this function will calculate a curve25519 public key.
+///
+/// # Example
 ///
 /// ```rust
-/// use self::curve25519::curve25519;
+/// # use self::curve25519::curve25519;
 ///
-/// let my_secretkey: [u8; 32] = [0; 32];     // Don't really use all zeros as a sk.
-/// let their_publickey: [u8; 32] = [0; 32];  // or a public key of all zeros.
-/// let mut basepoint : [u8; 32] = [0; 32];
+/// let my_secretkey: [u8; 32] = [0; 32]; // Don't really use all zeros as a secret key.
+/// let their_publickey: [u8; 32] = [0; 32]; // or a public key of all zeros.
+/// let mut basepoint: [u8; 32] = [0; 32];
 /// basepoint[0] = 9;
 ///
 /// // Generate a 32-byte curve25519 shared secret key
@@ -2569,38 +2623,40 @@ pub fn curve25519(secret: [u8; 32], public: [u8; 32]) -> [u8; 32] {
     (z2.invert() * x2).to_bytes()
 }
 
-/// Generate a 32-byte curve25519 secret key.  If you supply a random 32-byte
-/// value, that is used as the base.  If you don't (i.e. use None for the arg),
-/// then a random 32-byte number will be generated with the best OS random
-/// number generator available.
+/// Generate a 32-byte curve25519 secret key.
+///
+/// If you supply a random 32-byte value, that is used as the base.
+/// If you don't (i.e. use None for the `rand` arg), then a random 32-byte
+/// number will be generated with the best OS random number generator available.
+///
+/// # Example
 ///
 /// ```rust
-/// use self::curve25519::curve25519_sk;
-///
+/// # use self::curve25519::curve25519_sk;
+/// # use rand::Error as RndError;
+/// # fn main() -> Result<(), RndError> {
 /// // Let curve25519_sk generate the random 32-byte value.
-/// let sk1 = curve25519_sk(None);
+/// let sk1 = curve25519_sk(None)?;
 ///
-/// let myrand: [u8; 32] = [0; 32];  // Don't use all zeros as a random value!
+/// let myrand: [u8; 32] = [0; 32]; // Don't use all zeros as a random value!
 ///
 /// // Give curve25519_sk a random 32-byte value.
-/// let sk2 = curve25519_sk(Some(myrand));
+/// let sk2 = curve25519_sk(Some(myrand))?;
+/// # Ok(())
+/// # }
 /// ```
-pub fn curve25519_sk(rand: Option<[u8; 32]>) -> [u8; 32] {
+pub fn curve25519_sk(rand: Option<[u8; 32]>) -> Result<[u8; 32], RndError> {
     let mut buf: [u8; 32] = [0; 32];
 
-    // Fill a 32-byte buffer with random values if necessary.  Otherwise,
-    // use the given 32-byte value.
+    // Fill a 32-byte buffer with random values if necessary.
+    // Otherwise, use the given 32-byte value.
     let mut rand: [u8; 32] = match rand {
         Some(r) => r,
         None => {
-            let mut rng = match OsRng::new() {
-                Ok(rng) => rng,
-                Err(e) => panic!("Failed to create rng! {}", e),
-            };
-
+            let mut rng = OsRng::new()?;
             rng.fill(&mut buf);
             buf
-        }
+        },
     };
 
     // curve25519 secret key bit manip.
@@ -2608,23 +2664,28 @@ pub fn curve25519_sk(rand: Option<[u8; 32]>) -> [u8; 32] {
     rand[31] &= 127;
     rand[31] |= 64;
 
-    rand
+    Ok(rand)
 }
 
-/// Generate a 32-byte curve25519 public key.  Calls curve25519 with the public
-/// key set to the basepoint value of 9 followed by all zeros.
+/// Generate a 32-byte curve25519 public key.
+///
+/// Calls curve25519 with the public key set to the basepoint value of 9
+/// followed by all zeros.
+///
+/// # Example
 ///
 /// ```rust
-/// use self::curve25519::curve25519_pk;
+/// # use self::curve25519::curve25519_pk;
 ///
-/// let mysk: [u8; 32] = [0; 32];  // Don't use all zeros as a secret key!
+/// let mysk: [u8; 32] = [0; 32]; // Don't use all zeros as a secret key!
 ///
 /// let my_pk = curve25519_pk(mysk);
 /// ```
-pub fn curve25519_pk(sk: [u8; 32]) -> [u8; 32] {
+#[inline]
+pub fn curve25519_pk(secret_key: [u8; 32]) -> [u8; 32] {
     let mut basepoint: [u8; 32] = [0; 32];
     basepoint[0] = 9;
-    curve25519(sk, basepoint)
+    curve25519(secret_key, basepoint)
 }
 
 #[cfg(test)]
@@ -2636,9 +2697,7 @@ mod tests {
     }
 
     impl CurveGen {
-        fn new(seed: u32) -> CurveGen {
-            CurveGen { which: seed }
-        }
+        fn new(seed: u32) -> CurveGen { CurveGen { which: seed } }
     }
 
     impl Iterator for CurveGen {
@@ -2646,8 +2705,8 @@ mod tests {
 
         fn next(&mut self) -> Option<FieldElement> {
             let mut e: [u8; 32] = [0; 32];
-                // .map(|idx| (idx * (1289 + self.which * 761)) as u8)
-                // .collect();
+            // .map(|idx| (idx * (1289 + self.which * 761)) as u8)
+            // .collect();
             for idx in e.iter_mut() {
                 *idx *= (1289 + self.which * 761) as u8;
             }
@@ -2662,8 +2721,8 @@ mod tests {
     fn from_to_bytes_preserves() {
         for i in 0..50 {
             let mut e: [u8; 32] = [0; 32];
-                // .map(|idx| (idx * (1289 + i * 761)) as u8)
-                // .collect();
+            // .map(|idx| (idx * (1289 + i * 761)) as u8)
+            // .collect();
             for idx in e.iter_mut() {
                 *idx *= (1289 + i * 761) as u8;
             }
@@ -2718,15 +2777,15 @@ mod tests {
     #[test]
     fn base_example() {
         let sk: [u8; 32] = [
-            0x77, 0x07, 0x6d, 0x0a, 0x73, 0x18, 0xa5, 0x7d, 0x3c, 0x16, 0xc1, 0x72, 0x51, 0xb2,
-            0x66, 0x45, 0xdf, 0x4c, 0x2f, 0x87, 0xeb, 0xc0, 0x99, 0x2a, 0xb1, 0x77, 0xfb, 0xa5,
-            0x1d, 0xb9, 0x2c, 0x2a,
+            0x77, 0x07, 0x6d, 0x0a, 0x73, 0x18, 0xa5, 0x7d, 0x3c, 0x16, 0xc1,
+            0x72, 0x51, 0xb2, 0x66, 0x45, 0xdf, 0x4c, 0x2f, 0x87, 0xeb, 0xc0,
+            0x99, 0x2a, 0xb1, 0x77, 0xfb, 0xa5, 0x1d, 0xb9, 0x2c, 0x2a,
         ];
-        let pk = curve25519_pk(curve25519_sk(Some(sk)));
+        let pk = curve25519_pk(curve25519_sk(Some(sk)).unwrap());
         let correct: [u8; 32] = [
-            0x85, 0x20, 0xf0, 0x09, 0x89, 0x30, 0xa7, 0x54, 0x74, 0x8b, 0x7d, 0xdc, 0xb4, 0x3e,
-            0xf7, 0x5a, 0x0d, 0xbf, 0x3a, 0x0d, 0x26, 0x38, 0x1a, 0xf4, 0xeb, 0xa4, 0xa9, 0x8e,
-            0xaa, 0x9b, 0x4e, 0x6a,
+            0x85, 0x20, 0xf0, 0x09, 0x89, 0x30, 0xa7, 0x54, 0x74, 0x8b, 0x7d,
+            0xdc, 0xb4, 0x3e, 0xf7, 0x5a, 0x0d, 0xbf, 0x3a, 0x0d, 0x26, 0x38,
+            0x1a, 0xf4, 0xeb, 0xa4, 0xa9, 0x8e, 0xaa, 0x9b, 0x4e, 0x6a,
         ];
         assert_eq!(pk.to_vec(), correct.to_vec());
     }
