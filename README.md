@@ -1,10 +1,7 @@
 # Curve25519 in Pure Rust
 
-[![Build Status](https://travis-ci.org/shekohex/curve25519-rs.svg?branch=master)](https://travis-ci.org/shekohex/curve25519-rs)
+[![Build Status](https://travis-ci.org/shekohex/curve25519-rs.svg?branch=master)](https://travis-ci.org/shekohex/curve25519-rs) [![Documentation](https://img.shields.io/badge/docs-0.1.0-blue.svg)](https://shadykhalifa.me/curve25519-rs/) [![License](https://img.shields.io/badge/license-MIT%2FApache--2-yellowgreen.svg)](#)
 
-[![Documentation](https://img.shields.io/badge/docs-0.1.0-blue.svg)](https://shadykhalifa.me/curve25519-rs/)
-
-[![License](https://img.shields.io/badge/license-MIT%2FApache--2-yellowgreen.svg)](#)
 
 Curve25519 is a state-of-the-art Diffie-Hellman function suitable for a wide variety of applications.
 
