@@ -2639,6 +2639,9 @@ pub fn curve25519(secret: [u8; 32], public: [u8; 32]) -> [u8; 32] {
 /// ```rust
 /// # use self::curve25519::curve25519_sk;
 /// # use rand::Error as RndError;
+/// # #[cfg(not(feature = "std"))]
+/// # fn main() { }
+/// # #[cfg(feature = "std")]
 /// # fn main() -> Result<(), RndError> {
 /// // Let curve25519_sk generate the random 32-byte value.
 /// let sk1 = curve25519_sk(None)?;

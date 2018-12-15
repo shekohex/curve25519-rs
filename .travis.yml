@@ -8,9 +8,11 @@ script: |
   cargo build --verbose &&
   cargo test  --verbose &&
   cargo doc   --verbose &&
-  cargo build --no-default-features &&
+  cargo build --verbose --no-default-features &&
+  cargo test  --verbose --no-default-features &&
+  cargo doc   --verbose --no-default-features &&
   rustup target add thumbv7em-none-eabihf &&
-  cargo build --target thumbv7em-none-eabihf
+  cargo build --verbose --target thumbv7em-none-eabihf
 
 matrix:
   include:
