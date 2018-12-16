@@ -4,10 +4,20 @@ rust:
   - stable
   - beta
   - nightly
+addons:
+  apt:
+    packages:
+      - gcc-arm-none-eabi
+      - libnewlib-arm-none-eabi
 script: |
   cargo build --verbose &&
   cargo test  --verbose &&
-  cargo doc   --verbose
+  cargo doc   --verbose &&
+  cargo build --verbose --no-default-features &&
+  cargo test  --verbose --no-default-features &&
+  cargo doc   --verbose --no-default-features &&
+  rustup target add thumbv7em-none-eabihf &&
+  cargo build --verbose --no-default-features --target thumbv7em-none-eabihf
 
 matrix:
   include:

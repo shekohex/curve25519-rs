@@ -13,14 +13,19 @@ keywords = ["crypto", "curve25519", "rust-crypto"]
 categories = ["no-std", "algorithms"]
 repository = "https://github.com/shekohex/curve25519-rs"
 
-[dependencies]
-rand = "0.6.1"
+[dependencies.rand]
+version = "0.6.1"
+default-features = false
 
 [build-dependencies]
 cc = "1.0.26"
 
 [dev-dependencies]
 criterion = "0.2"
+
+[features]
+std = ["rand/std"]
+default = ["std"]
 
 [[bench]]
 name = "curve25519"
