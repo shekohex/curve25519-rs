@@ -1,0 +1,12 @@
+var ALIASES = {};
+ALIASES['curve25519'] = {};
+ALIASES['curve25519'] = {};
+ALIASES['curve25519'] = {};
+ALIASES['curve25519'] = {};
+ALIASES['curve25519'] = {};
+ALIASES['curve25519'] = {};
+ALIASES['curve25519'] = {};
+ALIASES['curve25519'] = {};
+ALIASES['curve25519'] = {};
+ALIASES['curve25519'] = {};
+ALIASES['curve25519'] = {};
