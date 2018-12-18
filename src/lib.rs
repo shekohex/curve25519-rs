@@ -7,11 +7,7 @@
 #![no_std]
 
 mod statics;
-mod util;
-use crate::{
-    statics::{BI, FE_D, FE_D2, FE_ONE, FE_SQRTM1, FE_ZERO, GE_PRECOMP_BASE},
-    util::fixed_time_eq,
-};
+use crate::statics::{BI, FE_D2, FE_ONE, FE_ZERO, GE_PRECOMP_BASE};
 use core::{
     cmp::{min, Eq, PartialEq},
     ops::{Add, Mul, Sub},
@@ -1149,12 +1145,6 @@ impl FieldElement {
         z_255_5 * z11
     }
 
-    fn is_nonzero(&self) -> bool {
-        let bs = self.to_bytes();
-        let zero = [0; 32];
-        !fixed_time_eq(bs.as_ref(), zero.as_ref())
-    }
-
     fn is_negative(&self) -> bool { (self.to_bytes()[0] & 1) != 0 }
 
     fn neg(&self) -> FieldElement {
@@ -1163,31 +1153,6 @@ impl FieldElement {
             -f[0], -f[1], -f[2], -f[3], -f[4], -f[5], -f[6], -f[7], -f[8],
             -f[9],
         ])
-    }
-
-    fn pow25523(&self) -> FieldElement {
-        let z2 = self.square();
-        let z8 = (0..2).fold(z2, |x, _| x.square());
-        let z9 = *self * z8;
-        let z11 = z2 * z9;
-        let z22 = z11.square();
-        let z_5_0 = z9 * z22;
-        let z_10_5 = (0..5).fold(z_5_0, |x, _| x.square());
-        let z_10_0 = z_10_5 * z_5_0;
-        let z_20_10 = (0..10).fold(z_10_0, |x, _| x.square());
-        let z_20_0 = z_20_10 * z_10_0;
-        let z_40_20 = (0..20).fold(z_20_0, |x, _| x.square());
-        let z_40_0 = z_40_20 * z_20_0;
-        let z_50_10 = (0..10).fold(z_40_0, |x, _| x.square());
-        let z_50_0 = z_50_10 * z_10_0;
-        let z_100_50 = (0..50).fold(z_50_0, |x, _| x.square());
-        let z_100_0 = z_100_50 * z_50_0;
-        let z_200_100 = (0..100).fold(z_100_0, |x, _| x.square());
-        let z_200_0 = z_200_100 * z_100_0;
-        let z_250_50 = (0..50).fold(z_200_0, |x, _| x.square());
-        let z_250_0 = z_250_50 * z_50_0;
-        let z_252_2 = (0..2).fold(z_250_0, |x, _| x.square());
-        z_252_2 * *self
     }
 }
 
@@ -1388,38 +1353,6 @@ impl GeP2 {
 }
 
 impl GeP3 {
-    pub fn from_bytes_negate_vartime(s: &[u8]) -> Option<GeP3> {
-        let y = FieldElement::from_bytes(s);
-        let z = FE_ONE;
-        let y_squared = y.square();
-        let u = y_squared - FE_ONE;
-        let v = (y_squared * FE_D) + FE_ONE;
-        let v_raise_3 = v.square() * v;
-        let v_raise_7 = v_raise_3.square() * v;
-        let uv7 = v_raise_7 * u; // Is this commutative? u comes second in the code, but not in the
-                                 // notation...
-
-        let mut x = uv7.pow25523() * v_raise_3 * u;
-
-        let vxx = x.square() * v;
-        let check = vxx - u;
-        if check.is_nonzero() {
-            let check2 = vxx + u;
-            if check2.is_nonzero() {
-                return None;
-            }
-            x = x * FE_SQRTM1;
-        }
-
-        if x.is_negative() == ((s[31] >> 7) != 0) {
-            x = x.neg();
-        }
-
-        let t = x * y;
-
-        Some(GeP3 { x, y, z, t })
-    }
-
     fn to_p2(&self) -> GeP2 {
         GeP2 {
             x: self.x,
@@ -2722,8 +2655,6 @@ mod tests {
 
         fn next(&mut self) -> Option<FieldElement> {
             let mut e: [u8; 32] = [0; 32];
-            // .map(|idx| (idx * (1289 + self.which * 761)) as u8)
-            // .collect();
             for idx in e.iter_mut() {
                 *idx *= (1289 + self.which * 761) as u8;
             }
@@ -2738,8 +2669,6 @@ mod tests {
     fn from_to_bytes_preserves() {
         for i in 0..50 {
             let mut e: [u8; 32] = [0; 32];
-            // .map(|idx| (idx * (1289 + i * 761)) as u8)
-            // .collect();
             for idx in e.iter_mut() {
                 *idx *= (1289 + i * 761) as u8;
             }
@@ -2804,6 +2733,6 @@ mod tests {
             0xdc, 0xb4, 0x3e, 0xf7, 0x5a, 0x0d, 0xbf, 0x3a, 0x0d, 0x26, 0x38,
             0x1a, 0xf4, 0xeb, 0xa4, 0xa9, 0x8e, 0xaa, 0x9b, 0x4e, 0x6a,
         ];
-        assert_eq!(pk.to_vec(), correct.to_vec());
+        assert_eq!(pk, correct);
     }
 }

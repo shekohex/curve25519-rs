@@ -3781,30 +3781,7 @@ pub(crate) static FE_ZERO: FieldElement =
     FieldElement([0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
 pub(crate) static FE_ONE: FieldElement =
     FieldElement([1, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
-pub(crate) static FE_SQRTM1: FieldElement = FieldElement([
-    -32_595_792,
-    -7_943_725,
-    9_377_950,
-    3_500_415,
-    12_389_472,
-    -272_473,
-    -25_146_209,
-    -2_005_654,
-    326_686,
-    11_406_482,
-]);
-pub(crate) static FE_D: FieldElement = FieldElement([
-    -10_913_610,
-    13_857_413,
-    -15_372_611,
-    6_949_391,
-    114_729,
-    -8_787_816,
-    -6_275_908,
-    -3_247_719,
-    -18_696_448,
-    -12_055_116,
-]);
+
 pub(crate) static FE_D2: FieldElement = FieldElement([
     -21_827_239,
     -5_839_606,
